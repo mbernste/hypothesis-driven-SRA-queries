@@ -8,7 +8,7 @@ import sqlite3
 import load_ontology
 
 QUERY_SRA_DB = """SELECT experiment_accession, run_accession, sample_accession, study_accession
-    FROM experiment JOIN sample USING (sample_accession) JOIN run USING (experiment_accession) WHERE 
+    FROM experiment JOIN sample USING (sample_accession) LEFT JOIN run USING (experiment_accession) WHERE 
     library_strategy = 'RNA-Seq' AND scientific_name = 'Homo sapiens' AND platform = 'ILLUMINA'"""
 
 def main():
@@ -34,7 +34,8 @@ def main():
             run = row[1]
             sample = row[2]
             study = row[3]
-            sample_to_runs[sample].append(run)
+            if run is not None:
+                sample_to_runs[sample].append(run)
             sample_to_study[sample] = study
     print('done.')        
 
@@ -57,6 +58,8 @@ def main():
                 term_names.append(term_name)
             sample_to_terms[sample] = term_names
             sample_to_type[sample] = sample_type
+
+    assert set(sample_to_terms.keys()) <= set(sample_to_study.keys())
 
     with open(join(out_dir, 'term_name_to_id.json'), 'w') as f:
         json.dump(term_name_to_id, f, indent=True)
