@@ -1,3 +1,7 @@
+#   Functions called from the Jupyter notebooks
+#   for implementing the Case-Control Finder and
+#   the Series Finder.
+
 from collections import defaultdict
 import json
 import pandas as pd
@@ -14,9 +18,7 @@ def term_to_run(sample_to_terms, term):
             runs_with_term.append(samples)
         else:
             runs_without_term.append(samples)
-
     assert set(runs_with_term) != set(runs_without_term), 'Oops! The set of samples with the term and without the term overlap!'
-
     return runs_with_term, runs_without_term
 
 def _is_poor_quality(terms, term_name_to_id):
@@ -413,25 +415,25 @@ def create_summary_plots(df):
     
     
 def load_metadata(available_data_f=None):
-    experiment_to_terms_f_json = './data/experiment_to_terms.json'
+    sample_to_terms_f_json = './data/sample_to_terms.json'
     term_name_to_id_f = './data/term_name_to_id.json'
-    #available_data_f = './data/experiments_in_hackathon_data.json'
-    experiment_to_study_f = './data/experiment_to_study.json'
-    experiment_to_real_value_terms_f = './data/experiment_to_real_value_terms.json'
-    experiment_to_runs_f = './data/experiment_to_runs.json'
-    experiment_to_type_f = './data/experiment_to_type.json'
+    #available_data_f = './data/samples_in_hackathon_data.json'
+    sample_to_study_f = './data/sample_to_study.json'
+    sample_to_real_value_terms_f = './data/sample_to_real_value.json'
+    sample_to_runs_f = './data/sample_to_runs.json'
+    sample_to_type_f = './data/sample_to_type.json'
 
-    with open(experiment_to_terms_f_json, 'r') as f:
+    with open(sample_to_terms_f_json, 'r') as f:
         sample_to_terms = json.load(f)    
     with open(term_name_to_id_f, 'r') as f:
         term_name_to_id = json.load(f)
-    with open(experiment_to_type_f, 'r') as f:
+    with open(sample_to_type_f, 'r') as f:
         sample_to_type = json.load(f)
-    with open(experiment_to_study_f, 'r') as f:
+    with open(sample_to_study_f, 'r') as f:
         sample_to_study = json.load(f)
-    with open(experiment_to_real_value_terms_f, 'r') as f:
+    with open(sample_to_real_value_terms_f, 'r') as f:
         sample_to_real_val = json.load(f)
-    with open(experiment_to_runs_f, 'r') as f:
+    with open(sample_to_runs_f, 'r') as f:
         sample_to_runs = json.load(f)    
     if available_data_f:
         with open(available_data_f, 'r') as f:
