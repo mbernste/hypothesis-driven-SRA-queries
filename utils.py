@@ -145,7 +145,7 @@ def _create_key_terms(terms, term_name_to_id):
             and term != 'native cell')
         ])
     """
-    return ','.join(sorted(term_set))
+    return '\n'.join(sorted(term_set))
     
     
 def match_case_to_controls(term, control_samples, case_samples, sample_to_terms, 
@@ -247,6 +247,8 @@ def match_case_to_controls(term, control_samples, case_samples, sample_to_terms,
         partition = term_to_partition[tissue_term]
         if by_run:
             for sample in partition['case']:
+                if sample not in sample_to_runs:
+                    continue
                 for run in sample_to_runs[sample]:
                     da.append((
                         run,
@@ -258,6 +260,8 @@ def match_case_to_controls(term, control_samples, case_samples, sample_to_terms,
                         sample in differentiated_samples
                     ))
             for sample in partition['control']:
+                if sample not in sample_to_runs:
+                    continue
                 for run in sample_to_runs[sample]:
                     da.append((
                         run,
@@ -348,7 +352,7 @@ def create_summary_plots(df):
         1,
         2,
         sharey=False,
-        figsize=(3*0.9*len(df_n_studies['Tissue/Cell type'].unique()), max_len/13+2.5)
+        figsize=(2*0.9*len(df_n_studies['Tissue/Cell type'].unique()), max_len/15+2.5)
     )
     
     sns.barplot(data=df_n_studies, x='Tissue/Cell type', y='Number of studies', hue='Condition', ax=axarr[0])
