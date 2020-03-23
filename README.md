@@ -1,8 +1,8 @@
 # Pipeline to find samples based on their metadata
 
-The interactive pipeline is accessible through the Jupyter Notebooks 
-- https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/case_control_search.ipynb
-- https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/series_search.ipynb
+The interactive pipeline is accessible through the Jupyter notebooks:
+- https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/case_control_finder.ipynb
+- https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/series_finder.ipynb
 
 ## How to interact with the Jupyter Notebooks
 
@@ -40,10 +40,10 @@ Then, paste the URL and token into your browser (we recommend using `127.0.0.1`)
 *Note: If you run this Docker image via ssh on an HPC, server, or virtual machine, paste the IP of the machine it is running on, not `127.0.0.1`.*
 
 In your browser, Jupyter Lab will open and you will see something like:  
-![Alt text](https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/jupyterlab-home.png?raw=true "Title")
+![Alt text](https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/screenshot_case_control.png?raw=true "Title")
 
 You can then navigate to the file you want to interact with:  
-![Alt text](https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/jupyterlab-notebook.png?raw=true "Title")
+![Alt text](https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/screenshot_series.png?raw=true "Title")
 
 ### Accessing Notebooks via Singularity
 If you do not have root access on your machine, you can also run the same Docker image via Singularity (https://www.sylabs.io/docs/)!
@@ -59,9 +59,3 @@ If you opt to not use the Docker image, you will need to install:
 - Jupyter Notebooks (or Jupyter Lab)
 - All the dependencies for the Notebook
 
-## Additional information on the functions
-- The Python functions can be found in https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/functions.py
-- The R code can be found in 
-  - https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/Metadata_plot.R
-  - https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/Metadata_table.R
-  - https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/blob/master/Metadata/Metadata_piecharts.R
