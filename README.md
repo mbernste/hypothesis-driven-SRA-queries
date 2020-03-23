@@ -1,4 +1,4 @@
-# Pipeline to find samples based on their metadata
+# Jupyter notebook-based tools for performing hypothesis-driven queries within the Sequence Read Archive
 
 The interactive pipeline is accessible through the Jupyter notebooks:
 - https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/case_control_finder.ipynb
