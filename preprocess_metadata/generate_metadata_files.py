@@ -40,7 +40,7 @@ def main():
     print('done.')        
 
     term_name_to_id = {}
-    sample_to_real_val_props = defaultdict(lambda: [])
+    sample_to_real_val_props = {}
     sample_to_terms = {}
     sample_to_type = {}
     with open(metasra_f, 'r') as f:
@@ -50,11 +50,15 @@ def main():
             sample_type = metasra[sample]['sample type']
             real_val_props = metasra[sample]['real-value properties']
             if len(real_val_props) > 0:
-                sample_to_real_val_props[sample].append(real_val_props)
+                sample_to_real_val_props[sample] = real_val_props
             term_names = []
             for term_id in term_ids:
                 term_name = og.id_to_term[term_id].name
-                term_name_to_id[term_name] = term_id
+                if term_name in term_name_to_id:
+                    if not('EFO' in term_id and 'DOID' in term_name_to_id[term_name]):
+                        term_name_to_id[term_name] = term_id
+                else:
+                    term_name_to_id[term_name] = term_id
                 term_names.append(term_name)
             sample_to_terms[sample] = term_names
             sample_to_type[sample] = sample_type
