@@ -4,6 +4,16 @@ The interactive pipeline is accessible through the Jupyter notebooks:
 - https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/case_control_finder.ipynb
 - https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/series_finder.ipynb
 
+Note, this repository was copied and modified from the following repository: [https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/tree/master/Metadata](https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/tree/master/Metadata). These tools were developed at an NCBI computational biology codeathon in March 2019 held in Chapel Hill, North Carolina.
+
+Contributors:
+- Matthew Bernstein 
+- Emily Clough
+- Ariella Gladstein
+- Khun Zaw Latt
+- Ben Busby
+- Allissa Dillman
+
 ## How to interact with the Jupyter Notebooks
 
 ### Accessing Notebooks via Docker
