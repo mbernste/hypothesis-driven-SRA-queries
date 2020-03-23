@@ -80,11 +80,15 @@ def _is_cell_line(terms, term_name_to_id):
 
 
 def series(term, target_property, sample_to_real_val, sample_to_terms, sample_to_type, 
-        sample_to_study, term_name_to_id, blacklist_terms, 
+        sample_to_study, term_name_to_id, filter_disease=True, 
         filter_poor=True, filter_cell_line=True, filter_differentiated=True,
         target_unit=None, value_limit=None, skip_missing_unit=False
     ):
     age_to_samples = defaultdict(lambda: set())
+    poor_samples = set()
+    cell_line_samples = set()
+    differentiated_samples = set()
+    disease_samples = set()
     for sample, real_val_infos in sample_to_real_val.items():
         if sample not in sample_to_terms:
             continue
@@ -94,31 +98,35 @@ def series(term, target_property, sample_to_real_val, sample_to_terms, sample_to
             value = int(real_val_info['value'])
             if target_unit and unit != target_unit:
                 continue
-            poor_samples = set()
-            cell_line_samples = set()
-            differentiated_samples = set()
             if property_ == target_property:
                 if value_limit and value > value_limit:
                     continue
                 terms = sample_to_terms[sample]
-                if len(blacklist_terms & set(sample_to_terms[sample])) > 0:
-                    continue
+                #if len(blacklist_terms & set(sample_to_terms[sample])) > 0:
+                #    continue
                 if term in terms:
                     age_to_samples[value].add(sample)
                 if _is_poor_quality(terms, term_name_to_id):
                     poor_samples.add(sample)
-                    if filter_poor:
-                        continue
+                if _is_diseased(terms, term_name_to_id):
+                    disease_samples.add(sample)
                 if sample_to_type[sample] == 'cell line':
                     cell_line_samples.add(sample)
-                    if filter_cell_line:
-                        continue
                 if filter_differentiated \
                     and (sample_to_type[sample] == 'in vitro differentiated cells'
                     or sample_to_type[sample] == 'induced pluripotent stem cell line'):
                     differentiated_samples.add(sample)
-                    if filter_differentiated:
-                        continue
+
+    for age in age_to_samples:
+        if filter_poor:
+            age_to_samples[age] -= poor_samples
+        if filter_cell_line:
+            age_to_samples[age] -= cell_line_samples
+        if filter_disease:
+            age_to_samples[age] -= disease_samples
+        if filter_differentiated:
+            age_to_samples[age] -= differentiated_samples
+    
 
     da = []
     for age in sorted(age_to_samples.keys()):
@@ -129,12 +137,14 @@ def series(term, target_property, sample_to_real_val, sample_to_terms, sample_to
                 age,
                 sample in poor_samples,
                 sample in cell_line_samples,
-                sample in differentiated_samples
+                sample in differentiated_samples,
+                sample in disease_samples
             ))
     df = pd.DataFrame(data=da, columns=[
-        'sample_accession', 'study_accession',
+        'sample', 'study',
         'age', 'missing_metadata',
-        'cell_line', 'differentiated'    
+        'cell_line', 'differentiated',
+        'diseased'
     ])
     return age_to_samples, df
 
@@ -285,7 +295,8 @@ def match_case_to_controls(term, control_samples, case_samples, sample_to_terms,
                         tissue_term,
                         sample in poor_samples,
                         sample in cell_line_samples,
-                        sample in differentiated_samples
+                        sample in differentiated_samples,
+                        sample in disease_samples
                     ))
             for sample in partition['control']:
                 if sample not in sample_to_runs:
@@ -298,7 +309,8 @@ def match_case_to_controls(term, control_samples, case_samples, sample_to_terms,
                         tissue_term,
                         sample in poor_samples,
                         sample in cell_line_samples,
-                        sample in differentiated_samples
+                        sample in differentiated_samples,
+                        sample in disease_samples
                     ))
         else:
             for sample in partition['case']:
@@ -309,7 +321,8 @@ def match_case_to_controls(term, control_samples, case_samples, sample_to_terms,
                     tissue_term,
                     sample in poor_samples,
                     sample in cell_line_samples,
-                    sample in differentiated_samples
+                    sample in differentiated_samples,
+                    sample in disease_samples
                 ))
             for sample in partition['control']:
                 da.append((
@@ -319,21 +332,24 @@ def match_case_to_controls(term, control_samples, case_samples, sample_to_terms,
                     tissue_term,
                     sample in poor_samples,
                     sample in cell_line_samples,
-                    sample in differentiated_samples
+                    sample in differentiated_samples,
+                    sample in disease_samples
                 ))
     if by_run:
         df = pd.DataFrame(data=da, columns=[
             'sample', 'project',
             'condition',
             'type', 'missing_metadata',
-            'cell_line', 'differentiated'
+            'cell_line', 'differentiated',
+            'diseased'
         ])
     else:
         df = pd.DataFrame(data=da, columns=[
             'sample', 'project', 
             'condition',
             'type', 'missing_metadata',
-            'cell_line', 'differentiated'
+            'cell_line', 'differentiated',
+            'diseased'
         ])
     return (
         df, 
@@ -357,7 +373,7 @@ def select_case_control_subset(df, case_control, term):
         ])
 
 
-def create_barplot_most_common_coterms(
+def create_barplot_most_common_coterms_match(
         df, view_cases, targ_term, sample_to_terms
     ):
     if targ_term is not None:
@@ -367,10 +383,31 @@ def create_barplot_most_common_coterms(
         case_control = 'case'
     else:
         case_control = 'control'
-        
     view_samples = select_case_control_subset(
         df, case_control, targ_term
     )    
+    _create_barplot_most_common_coterms(
+        view_samples, 
+        sample_to_terms,
+        skip_terms=set([targ_term])
+    )
+
+def create_barplot_most_common_coterms_series(
+        val_to_samples, val, sample_to_terms
+    ):
+    if val in val_to_samples:
+        view_samples = list(val_to_samples[val])
+        print("Displaying data for %d sample with propert=%d" % (len(view_samples), val))
+    else:
+        print("Value {} was not found in the longitudinal query. Please try another query.".format(val))
+    _create_barplot_most_common_coterms(
+        view_samples, 
+        sample_to_terms
+    )   
+
+def _create_barplot_most_common_coterms(
+        view_samples, sample_to_terms, skip_terms=None 
+    ):
     sample_to_terms = {
         sample: sample_to_terms[sample]
         for sample in view_samples
@@ -378,7 +415,7 @@ def create_barplot_most_common_coterms(
     term_to_samples = defaultdict(lambda: set())
     for sample, terms in sample_to_terms.items():
         for term in terms:
-            if term != targ_term:
+            if skip_terms is None or term not in skip_terms:
                 term_to_samples[term].add(sample)
 
     term_counts_df = pd.DataFrame(
@@ -388,6 +425,7 @@ def create_barplot_most_common_coterms(
         ],
         columns=['Term', 'Fraction of Samples']
     )
+
     term_counts_df = term_counts_df.sort_values(
         by='Fraction of Samples', 
         ascending=False
@@ -416,15 +454,32 @@ def create_barplot_most_common_coterms(
     return term_counts_df
 
 
-def create_pie_charts(df, view_cases, targ_term, sample_to_terms):
+def create_pie_charts_matched(df, view_cases, targ_term, sample_to_terms):
     if view_cases:
         case_control = 'case'
     else:
         case_control = 'control'
-    
     view_samples = select_case_control_subset(
         df, case_control, targ_term
-    )    
+    ) 
+    _create_pie_charts(df, view_samples, sample_to_terms, skip_terms=set([targ_term]))
+
+
+def create_pie_charts_series(
+        df, val_to_samples, val, sample_to_terms
+    ):
+    if val in val_to_samples:
+        view_samples = list(val_to_samples[val])
+        print("Displaying most frequent co-occuring terms for %d sample with property = %d" % (len(view_samples), val))
+    else:
+        print("Value {} was not found in the longitudinal query. Please try another query.".format(val))
+    _create_pie_charts(
+        df, 
+        view_samples,
+        sample_to_terms
+    )
+
+def _create_pie_charts(df, view_samples, sample_to_terms, skip_terms=None):
     sample_to_terms = {
         sample: sample_to_terms[sample]
         for sample in view_samples
@@ -432,7 +487,7 @@ def create_pie_charts(df, view_cases, targ_term, sample_to_terms):
     term_to_samples = defaultdict(lambda: set())
     for sample, terms in sample_to_terms.items():
         for term in terms:
-            if term != targ_term:
+            if skip_terms is None or term not in skip_terms:
                 term_to_samples[term].add(sample)
 
     fig, axarr = plt.subplots(
@@ -453,7 +508,8 @@ def create_pie_charts(df, view_cases, targ_term, sample_to_terms):
     labels = ['cell line', 'no cell line']
     axarr[0][0].set_title('Cell Line')
     patches, x, y = axarr[0][0].pie(
-        sizes, autopct='%1.1f%%',
+        sizes, 
+        autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
         shadow=False, startangle=90
     )
     axarr[0][0].legend(
@@ -472,7 +528,8 @@ def create_pie_charts(df, view_cases, targ_term, sample_to_terms):
     labels = ['female', 'male', 'unknown']
     axarr[0][1].set_title('Sex')
     patches, x, y  = axarr[0][1].pie(
-        sizes, autopct='%1.1f%%',
+        sizes,
+        autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
         shadow=False, startangle=90
     )
     axarr[0][1].legend(
@@ -491,7 +548,8 @@ def create_pie_charts(df, view_cases, targ_term, sample_to_terms):
     labels = ['adult', 'embryonic', 'unknown']
     axarr[1][0].set_title('Developmental Stage')
     patches, x, y  = axarr[1][0].pie(
-        sizes, autopct='%1.1f%%',
+        sizes,
+        autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
         shadow=False, startangle=90
     )
     axarr[1][0].legend(
@@ -509,7 +567,8 @@ def create_pie_charts(df, view_cases, targ_term, sample_to_terms):
     labels = ['treatment', 'no treatment']
     axarr[1][1].set_title('Treatment')
     patches, x, y = axarr[1][1].pie(
-        sizes, autopct='%1.1f%%',
+        sizes,
+        autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
         shadow=False, startangle=90
     )
     axarr[1][1].legend(
