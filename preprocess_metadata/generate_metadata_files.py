@@ -21,6 +21,7 @@ def main():
     out_dir = options.out_dir
 
     og = load_ontology.the_ontology()
+    u_og = load_ontology.unit_ontology()
 
     sample_to_runs = defaultdict(lambda: [])
     sample_to_study = {}
@@ -48,7 +49,20 @@ def main():
         for sample in metasra:
             term_ids = metasra[sample]['mapped ontology terms']
             sample_type = metasra[sample]['sample type']
-            real_val_props = metasra[sample]['real-value properties']
+            raw_real_val_props = metasra[sample]['real-value properties']
+            real_val_props = []
+            for real_val_prop in raw_real_val_props:
+                prop_id = real_val_prop['property_id']
+                unit_id = real_val_prop['unit_id']
+                prop_name = og.id_to_term[prop_id].name
+                if unit_id != 'missing' and unit_id is not None:
+                    unit_name = u_og.id_to_term[unit_id].name
+                else:
+                    unit_name = unit_id
+                new_real_val_prop = {}
+                new_real_val_prop['property'] = prop_name
+                new_real_val_prop['unit'] = unit_name
+                real_val_props.append(new_real_val_prop)
             if len(real_val_props) > 0:
                 sample_to_real_val_props[sample] = real_val_props
             term_names = []
