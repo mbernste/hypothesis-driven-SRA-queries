@@ -1,0 +1,41 @@
+##########################################################
+#   Download MetaSRA and SRAdb to generate static
+#   version of metadata files for querying.
+##########################################################
+
+SRA_DB_LOCATION = 'https://s3.amazonaws.com/starbuck1/sradb/SRAmetadb.sqlite.gz'
+METASRA_VERSION = 'v1.6'
+METASRA_LOC = 'http://metasra.biostat.wisc.edu/static/metasra_versions/{version}/metasra.{version}.json'.format(
+    version=METASRA_VERSION
+)
+
+rule download_SRAdb:
+    output:
+        '../SRAmetadb.sqlite'
+    run:
+        commands=[
+            "curl {sra_db_loc} > {{output}}.gz".format(
+                sra_db_loc=SRA_DB_LOCATION
+            ),
+            "gunzip -f {output}.gz"
+        ]
+        for c in commands:
+            shell(c)
+
+rule download_MetaSRA:
+    output:
+        '../metasra.{}.json'.format(METASRA_VERSION)
+    run:
+        c="curl {metasra_loc} > {{output}}".format(
+            metasra_loc=METASRA_LOC
+        )
+        shell(c)
+
+rule generate_metadata_files:
+    input:
+        sradb='../SRAmetadb.sqlite',
+        metasra='../metasra.v1-6.json'
+    run:
+        c='python generate_metadata_files.py {input.metasra} {input.sradb} -o .'
+        shell(c)
+
