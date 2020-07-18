@@ -1,6 +1,7 @@
-#   Functions called from the Jupyter notebooks
-#   for implementing the Case-Control Finder and
-#   the Series Finder.
+###########################################################################################
+#   Functions called from the Jupyter notebooks for implementing the Case-Control 
+#   Finder and the Series Finder.
+###########################################################################################
 
 from collections import defaultdict
 import json
@@ -15,6 +16,20 @@ TREATMENT_TERMS = set([
 ])
 
 def term_to_samples(sample_to_terms, term):
+    """
+    Given a mapping from each sample to its set of annotated terms
+    and a target term, return the set of all samples annoated with
+    the target term and those that are not.
+
+    Parameters:
+    sample_to_terms (dictionary): Dictionary mapping each sample
+        to the set of terms annotating each sample
+    term (string): The target term
+
+    Returns:
+    list: samples annotated with the term
+    list: samples annotated without the term
+    """
     samples_with_term = []
     samples_without_term = []
     for samples, terms in sample_to_terms.items():
@@ -27,8 +42,19 @@ def term_to_samples(sample_to_terms, term):
 
 
 def _is_poor_quality(terms, term_name_to_id):
+    """
+    Determine wether a sample meets a 'metadata completeness'
+    threshold. 
+
+    Parameters:
+    terms (list): A set of terms that annotate a particular samples
+    term_name_to_id (dictionary): A dictionary mapping each term's
+        name to it's original ontology id
+
+    Returns:
+    boolean: True if the sample meets the threshold. False otherwise.
+    """
     found_tissue = False
-    #found_cell_line = False
     found_cell_type = False
     for term in terms:
         term_id = term_name_to_id[term]
@@ -36,23 +62,30 @@ def _is_poor_quality(terms, term_name_to_id):
             and term != 'female organism' and term != 'adult organism' \
             and term != 'organ':
             found_tissue = True
-        #elif 'CVCL' in term_id:
-        #    found_cell_line = True
         elif 'CL' in term_id and 'CVCL' not in term_id \
             and term != 'cultured cell' \
             and term != 'cell' and term != 'eukaryotic cell' \
             and term != 'animal cell' and term != 'native cell':
             found_cell_type = True
-    #return not (found_tissue or found_cell_line or found_cell_type)
     return not (found_tissue or found_cell_type)  
+
 
 def _is_diseased(terms, term_name_to_id):
     """
     Determine whether sample may be a diseased
-    sample
+    sample.
+
+    Parameters:
+    terms (list): A set of terms that annotate a particular samples
+    term_name_to_id (dictionary): A dictionary mapping each term's
+        name to it's original ontology id
+
+    Returns:
+    boolean: True if the sample is deemed diseased. False otherwise.
     """
     for term in terms:
-        if term == 'disease' or 'DOID' in term_name_to_id[term]:
+        if term == 'disease' \
+            or 'DOID' in term_name_to_id[term]:
             return True
     return False
 
@@ -60,7 +93,16 @@ def _is_diseased(terms, term_name_to_id):
 def _is_treated(terms, term_name_to_id):
     """
     Determine whether sample may be a treated
-    sample
+    sample.
+
+    Parameters:
+    terms (list): A set of terms that annotate a particular samples
+    term_name_to_id (dictionary): A dictionary mapping each term's
+        name to it's original ontology id
+
+    Returns:
+    boolean: True if the sample is deemed to have been experimentally
+        treated. False otherwise.
     """
     for term in terms:
         if term in TREATMENT_TERMS:
@@ -72,6 +114,15 @@ def _is_cell_line(terms, term_name_to_id):
     """
     Determine whether a given ontology term is describing
     a cell line.
+
+    Parameters:
+    terms (list): A set of terms that annotate a particular samples
+    term_name_to_id (dictionary): A dictionary mapping each term's
+        name to it's original ontology id
+
+    Returns:
+    boolean: True if the sample is deemed to be a cell line sample
+        treated. False otherwise.
     """
     for term in terms:
         if 'CVCL' in term_name_to_id[term]:
@@ -79,12 +130,51 @@ def _is_cell_line(terms, term_name_to_id):
     return False
 
 
-def series(term, target_property, sample_to_real_val, sample_to_terms, sample_to_type, 
-        sample_to_study, term_name_to_id, filter_disease=True, 
-        filter_poor=True, filter_cell_line=True, filter_differentiated=True,
-        target_unit=None, value_limit=None, skip_missing_unit=False
+def series(term, target_property, sample_to_real_val, sample_to_terms, 
+        sample_to_type, sample_to_study, term_name_to_id, 
+        filter_disease=True, filter_poor=True, filter_cell_line=True, 
+        filter_differentiated=True,target_unit=None, value_limit=None, 
+        skip_missing_unit=False
     ):
-    age_to_samples = defaultdict(lambda: set())
+    """
+    Perform the Series Finder query for ordered sets of samples.
+
+    Parameters:
+    term (string): The target term (e.g., 'brain'). All returned samples 
+        will be annotated with this term.
+    target_property (string): The target property (e.g., 'age'). All 
+        returned samples will have a value for this property.
+    sample_to_real_val (dictionary): A dictionary mapping every sample
+        to its set of real-value property objects from the MetaSRA
+    sample_to_terms (dictionary): A dictionary mapping each sample to
+        its set of annotated terms.
+    sample_to_type (dictionary): A dictionary mapping each sample to
+        its MetaSRA sample-type
+    sample_to_study (dictionary): A dictionary mapping each sample to
+        its study id of origin
+    term_name_to_id (dictionary): A dictionary mapping each term's
+        name to it's original ontology id
+    filter_disease (boolean): If True, remove all diseased samples from
+        results
+    filter_poor (boolean): If True, remove all samples that fail to meet
+        the metadata-completeness threshold
+    filter_cell_line (boolean): If True, remove all cell line samples
+    filter_differentiated (boolean): If True, remove all in vitro 
+        differentiated samples
+    target_unit (string): The units that target_property should be 
+        measured in (e.g., 'year')
+    value_limit (number): Filter all samples with a value greater than
+        this value
+    skip_missing_unit (boolean): If True, remove all samples for which
+        the target_property is missing a unit (this is quite common)
+
+    Returns:
+    dictionary: a dictionary mapping each numeric value for the 
+        target_property to a set of samples
+    DataFrame: a pandas DataFrame with more detailed information 
+        for all results
+    """
+    val_to_samples = defaultdict(lambda: set())
     poor_samples = set()
     cell_line_samples = set()
     differentiated_samples = set()
@@ -102,10 +192,8 @@ def series(term, target_property, sample_to_real_val, sample_to_terms, sample_to
                 if value_limit and value > value_limit:
                     continue
                 terms = sample_to_terms[sample]
-                #if len(blacklist_terms & set(sample_to_terms[sample])) > 0:
-                #    continue
                 if term in terms:
-                    age_to_samples[value].add(sample)
+                    val_to_samples[value].add(sample)
                 if _is_poor_quality(terms, term_name_to_id):
                     poor_samples.add(sample)
                 if _is_diseased(terms, term_name_to_id):
@@ -116,21 +204,18 @@ def series(term, target_property, sample_to_real_val, sample_to_terms, sample_to
                     and (sample_to_type[sample] == 'in vitro differentiated cells'
                     or sample_to_type[sample] == 'induced pluripotent stem cell line'):
                     differentiated_samples.add(sample)
-
-    for age in age_to_samples:
+    for age in val_to_samples:
         if filter_poor:
-            age_to_samples[age] -= poor_samples
+            val_to_samples[age] -= poor_samples
         if filter_cell_line:
-            age_to_samples[age] -= cell_line_samples
+            val_to_samples[age] -= cell_line_samples
         if filter_disease:
-            age_to_samples[age] -= disease_samples
+            val_to_samples[age] -= disease_samples
         if filter_differentiated:
-            age_to_samples[age] -= differentiated_samples
-    
-
+            val_to_samples[age] -= differentiated_samples
     da = []
-    for age in sorted(age_to_samples.keys()):
-        for sample in age_to_samples[age]:
+    for age in sorted(val_to_samples.keys()):
+        for sample in val_to_samples[age]:
             da.append((
                 sample,
                 sample_to_study[sample],
@@ -146,18 +231,16 @@ def series(term, target_property, sample_to_real_val, sample_to_terms, sample_to
         'cell_line', 'differentiated',
         'diseased'
     ])
-    return age_to_samples, df
+    return val_to_samples, df
 
 
 def _create_key_terms(terms, term_name_to_id):
-    #print('original terms: ', terms)
     term_set = set([
         term for term in terms
         if ('UBERON' in term_name_to_id[term]
         or 'CL' in term_name_to_id[term])
         and 'CVCL' not in term_name_to_id[term]
     ])
-    #print('Now its: ', term_set)
     term_set -= set([
         'male organism',
         'female organism',
@@ -174,12 +257,23 @@ def _create_key_terms(terms, term_name_to_id):
     assert len(term_set) > 0
     return '\n'.join(sorted(term_set))
     
-    
-def match_case_to_controls(term, control_samples, case_samples, sample_to_terms, 
-    sample_to_study, term_name_to_id, sample_to_type, 
-    filter_poor=True, filter_treated=True, filter_disease=True, 
-    filter_cell_line=True, filter_differentiated=True, 
-    by_run=False, sample_to_runs=None):
+   
+def match_case_to_controls(
+        term, 
+        control_samples, 
+        case_samples, 
+        sample_to_terms, 
+        sample_to_study, 
+        term_name_to_id, 
+        sample_to_type, 
+        filter_poor=True, 
+        filter_treated=True, 
+        filter_disease=True, 
+        filter_cell_line=True, 
+        filter_differentiated=True, 
+        by_run=False, 
+        sample_to_runs=None
+    ):
     filtered = set()
     control_samples = set(control_samples)
     case_samples = set(case_samples)
@@ -262,19 +356,6 @@ def match_case_to_controls(term, control_samples, case_samples, sample_to_terms,
         & set(case_term_set_to_samples.keys())
     term_to_partition = {}
     for term_set in tissue_intersections:
-        #term_id = term_name_to_id[term]
-        #if ('UBERON' in term_id \
-        #    and term != 'male organism' \
-        #    and term != 'female organism' \
-        #    and term != 'adult organism' \
-        #    and term != 'organ') or \
-        #    ('CL' in term_id \
-        #    and term != 'cultured cell' \
-        #    and term != 'cell' \
-        #    and term != 'eukaryotic cell' \
-        #    and term != 'animal cell' \
-        #    and term != 'native cell'):
-        #    tissue_intersections.add(term)
         term_to_partition[term_set] = {
             'case': list(case_term_set_to_samples[term_set]),
             'control': list(control_term_set_to_samples[term_set])
