@@ -15,7 +15,11 @@ A few things to note:
 
 ###  Setup
 
-The dependencies for these notebooks are described in ``requirements.txt``.  Furthermore, before running the notebook, you must unpack the static metadata files from ``data.tar.gz``. To do so, run the following command:
+The dependencies for these notebooks are described in ``requirements.txt``.  To install these dependencies, please run
+
+``pip install -r requirements.txt``
+
+Furthermore, before running the notebook, you must unpack the static metadata files from ``data.tar.gz``. To do so, run the following command:
 
 ``tar -zcf data.tar.gz``
 
