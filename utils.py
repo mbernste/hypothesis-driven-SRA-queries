@@ -1,4 +1,4 @@
-###########################################################################################
+##########################################################################################
 #   Functions called from the Jupyter notebooks for implementing the Case-Control 
 #   Finder and the Series Finder.
 ###########################################################################################
@@ -15,7 +15,7 @@ TREATMENT_TERMS = set([
     'transfection'
 ])
 
-def term_to_samples(sample_to_terms, term):
+def term_to_samples(sample_to_terms, term_id_to_name, term):
     """
     Given a mapping from each sample to its set of annotated terms
     and a target term, return the set of all samples annoated with
@@ -30,6 +30,12 @@ def term_to_samples(sample_to_terms, term):
     list: samples annotated with the term
     list: samples annotated without the term
     """
+    # If the user supplied a term ID, then map it back to a term
+    # name
+    if 'UBERON:' in term or 'CL:' in term or 'CVCL:' in term \
+        or 'DOID:' in term or 'EFO:' in term:
+        term = term_id_to_name[term]
+
     samples_with_term = []
     samples_without_term = []
     for samples, terms in sample_to_terms.items():
@@ -68,6 +74,24 @@ def _is_poor_quality(terms, term_name_to_id):
             and term != 'animal cell' and term != 'native cell':
             found_cell_type = True
     return not (found_tissue or found_cell_type)  
+
+
+def _no_sex_specified(terms, term_name_to_id):
+    if 'male organism' not in terms and 'female organism' not in terms:
+        return True
+    else:
+        return False
+
+
+def _get_age(real_vals):
+    for real_val in real_vals:
+        prop = real_val['property']
+        unit = real_val['unit']
+        if prop == 'age':
+            # Note, if the unit is missing, we assume it is years. However,
+            # this may be an error. 
+            if unit == 'missing' or unit == 'year':
+                return real_val['value']
 
 
 def _is_diseased(terms, term_name_to_id):
@@ -130,16 +154,29 @@ def _is_cell_line(terms, term_name_to_id):
     return False
 
 
-def series(term, target_property, sample_to_real_val, sample_to_terms, 
-        sample_to_type, sample_to_study, term_name_to_id, 
-        filter_disease=True, filter_poor=True, filter_cell_line=True, 
-        filter_differentiated=True,target_unit=None, value_limit=None, 
+def series(
+        term, 
+        target_property, 
+        sample_to_real_val, 
+        sample_to_terms, 
+        sample_to_type, 
+        sample_to_study, 
+        term_name_to_id, 
+        term_id_to_name,
+        filter_disease=True, 
+        filter_poor=True, 
+        filter_cell_line=True, 
+        filter_differentiated=True,
+        require_differentiation=False,
+        target_unit=None, 
+        value_limit=None, 
         skip_missing_unit=False
     ):
     """
     Perform the Series Finder query for ordered sets of samples.
 
-    Parameters:
+    Parameters
+    ----------
     term (string): The target term (e.g., 'brain'). All returned samples 
         will be annotated with this term.
     target_property (string): The target property (e.g., 'age'). All 
@@ -154,6 +191,8 @@ def series(term, target_property, sample_to_real_val, sample_to_terms,
         its study id of origin
     term_name_to_id (dictionary): A dictionary mapping each term's
         name to it's original ontology id
+    term_id_to_name (dictionary): A dictionary mapping each term's
+        id to it's name
     filter_disease (boolean): If True, remove all diseased samples from
         results
     filter_poor (boolean): If True, remove all samples that fail to meet
@@ -168,17 +207,24 @@ def series(term, target_property, sample_to_real_val, sample_to_terms,
     skip_missing_unit (boolean): If True, remove all samples for which
         the target_property is missing a unit (this is quite common)
 
-    Returns:
-    dictionary: a dictionary mapping each numeric value for the 
-        target_property to a set of samples
-    DataFrame: a pandas DataFrame with more detailed information 
-        for all results
+    Returns
+    -------
+    value_to_samples, results_dataframe : a dictionary mapping each 
+        numeric value for the target_property to a set of samples as
+        well as a Pandas DataFrame with more detailed information 
+        for these results.
     """
+    # If the term is a term ID, then map it to a term name
+    if 'UBERON:' in term or 'CL:' in term or 'CVCL:' in term \
+        or 'DOID:' in term or 'EFO:' in term:
+        term = term_id_to_name[term]
+
     val_to_samples = defaultdict(lambda: set())
     poor_samples = set()
     cell_line_samples = set()
     differentiated_samples = set()
     disease_samples = set()
+    non_differentiating_samples = set()
     for sample, real_val_infos in sample_to_real_val.items():
         if sample not in sample_to_terms:
             continue
@@ -204,6 +250,11 @@ def series(term, target_property, sample_to_real_val, sample_to_terms,
                     and (sample_to_type[sample] == 'in vitro differentiated cells'
                     or sample_to_type[sample] == 'induced pluripotent stem cell line'):
                     differentiated_samples.add(sample)
+                if require_differentiation \
+                    and not (sample_to_type[sample] == 'in vitro differentiated cells' \
+                    or sample_to_type[sample] == 'induced pluripotent stem cell line'):
+                    non_differentiating_samples.add(sample)
+
     for age in val_to_samples:
         if filter_poor:
             val_to_samples[age] -= poor_samples
@@ -213,6 +264,17 @@ def series(term, target_property, sample_to_real_val, sample_to_terms,
             val_to_samples[age] -= disease_samples
         if filter_differentiated:
             val_to_samples[age] -= differentiated_samples
+        if require_differentiation:
+            val_to_samples[age] -= non_differentiating_samples
+
+    # Remove values that are no longer associated with 
+    # any samples
+    val_to_samples = {
+        val: samples
+        for val, samples in val_to_samples.items()
+        if len(samples) > 0
+    }
+
     da = []
     for age in sorted(val_to_samples.keys()):
         for sample in val_to_samples[age]:
@@ -225,28 +287,40 @@ def series(term, target_property, sample_to_real_val, sample_to_terms,
                 sample in differentiated_samples,
                 sample in disease_samples
             ))
-    df = pd.DataFrame(data=da, columns=[
-        'sample', 'study',
-        'age', 'missing_metadata',
-        'cell_line', 'differentiated',
-        'diseased'
-    ])
+    df = pd.DataFrame(
+        data=da, 
+        columns=[
+            'sample', 
+            'study',
+            'age', 
+            'missing_metadata',
+            'cell_line', 
+            'differentiated',
+            'diseased'
+        ]
+    )
     return val_to_samples, df
 
 
-def _create_key_terms(terms, term_name_to_id):
+def _create_key_terms(terms, term_name_to_id, match_sex=False, age_str=None):
     term_set = set([
         term for term in terms
         if ('UBERON' in term_name_to_id[term]
         or 'CL' in term_name_to_id[term])
         and 'CVCL' not in term_name_to_id[term]
     ])
-    term_set -= set([
-        'male organism',
-        'female organism',
-        'adult organism',
-        'organ'    
-    ])
+    if match_sex:
+        term_set -= set([
+            'adult organism',
+            'organ' 
+        ])
+    else:
+        term_set -= set([
+            'male organism',
+            'female organism',
+            'adult organism',
+            'organ'    
+        ])
     term_set -= set([
         'cultured cell',
         'cell',
@@ -254,6 +328,8 @@ def _create_key_terms(terms, term_name_to_id):
         'animal cell',
         'native cell'
     ])
+    if age_str is not None:
+        term_set.add(age_str)
     assert len(term_set) > 0
     return '\n'.join(sorted(term_set))
     
@@ -262,7 +338,8 @@ def match_case_to_controls(
         term, 
         control_samples, 
         case_samples, 
-        sample_to_terms, 
+        sample_to_terms,
+        sample_to_real_val,
         sample_to_study, 
         term_name_to_id, 
         sample_to_type, 
@@ -270,7 +347,9 @@ def match_case_to_controls(
         filter_treated=True, 
         filter_disease=True, 
         filter_cell_line=True, 
-        filter_differentiated=True, 
+        filter_differentiated=True,
+        match_sex=False,
+        match_age=False,
         by_run=False, 
         sample_to_runs=None
     ):
@@ -293,8 +372,26 @@ def match_case_to_controls(
     differentiated_samples = set()
     disease_samples = set()
     treated_samples = set()
+    no_sex_samples = set()
+    no_age_samples = set()
+    sample_to_age_str = {}
     for sample in set(control_samples) | set(case_samples):
         terms = sample_to_terms[sample]
+        if match_age and sample in sample_to_real_val:
+            real_vals = sample_to_real_val[sample]
+            age = _get_age(real_vals)
+        else:
+            age = None
+
+        if age is not None:
+            sample_to_age_str[sample] = 'Age = {}'.format(age)
+        else:
+            sample_to_age_str[sample] = None
+
+        if match_sex and _no_sex_specified(terms, term_name_to_id):
+            no_sex_samples.add(sample)
+        if age is None:
+            no_age_samples.add(sample)
         if _is_poor_quality(terms, term_name_to_id):
             poor_samples.add(sample)
         if _is_diseased(terms, term_name_to_id):
@@ -323,6 +420,12 @@ def match_case_to_controls(
     if filter_differentiated:
         control_samples -= differentiated_samples
         case_samples -= differentiated_samples
+    if match_sex:
+        control_samples -= no_sex_samples
+        case_samples -= no_sex_samples
+    if match_age:
+        control_samples -= no_age_samples
+        case_samples -= no_age_samples
 
     # Partition each term into case and control samples
     control_term_set_to_samples = defaultdict(lambda: set())
@@ -331,13 +434,23 @@ def match_case_to_controls(
         terms = sample_to_terms[sample]
         for term in terms:
             case_term_to_samples[term].add(sample)
-        key_term_set = _create_key_terms(terms, term_name_to_id)
+        key_term_set = _create_key_terms(
+            terms, 
+            term_name_to_id, 
+            match_sex=match_sex,
+            age_str=sample_to_age_str[sample]
+        )
         case_term_set_to_samples[key_term_set].add(sample)
     for sample in control_samples:
         terms = sample_to_terms[sample]
         for term in terms:
             control_term_to_samples[term].add(sample)
-        key_term_set = _create_key_terms(terms, term_name_to_id)
+        key_term_set = _create_key_terms(
+            terms, 
+            term_name_to_id, 
+            match_sex=match_sex,
+            age_str=sample_to_age_str[sample]
+        )
         control_term_set_to_samples[key_term_set].add(sample)
 
     # Search for confounding variables
@@ -466,21 +579,28 @@ def create_barplot_most_common_coterms_match(
         case_control = 'control'
     view_samples = select_case_control_subset(
         df, case_control, targ_term
-    )    
-    _create_barplot_most_common_coterms(
-        view_samples, 
-        sample_to_terms,
-        skip_terms=set([targ_term])
     )
+    if len(view_samples) == 0:
+        case_str = "cases" if view_cases == True else "controls"
+        return 'Error. No samples in the {} were labeled as "{}". Please input another term and re-run this cell.'.format(
+            case_str,
+            targ_term
+        )
+    else:
+        _create_barplot_most_common_coterms(
+            view_samples, 
+            sample_to_terms,
+            skip_terms=set([targ_term])
+        )
 
 def create_barplot_most_common_coterms_series(
         val_to_samples, val, sample_to_terms
     ):
     if val in val_to_samples:
         view_samples = list(val_to_samples[val])
-        print("Displaying data for %d sample with propert=%d" % (len(view_samples), val))
+        print("Displaying data for %d sample with property=%d" % (len(view_samples), val))
     else:
-        print("Value {} was not found in the longitudinal query. Please try another query.".format(val))
+        return "Value {} was not found in the longitudinal query. Please try another query.".format(val)
     _create_barplot_most_common_coterms(
         view_samples, 
         sample_to_terms
@@ -536,6 +656,8 @@ def _create_barplot_most_common_coterms(
 
 
 def create_pie_charts_matched(df, view_cases, targ_term, sample_to_terms):
+    if targ_term is not None:
+        targ_term = targ_term.replace(',', '\n')
     if view_cases:
         case_control = 'case'
     else:
@@ -584,14 +706,21 @@ def _create_pie_charts(df, view_samples, sample_to_terms, skip_terms=None):
             df.set_index('sample').loc[view_samples]['cell_line'] == True
         ]
     )
+
     n_no_cell_line = len(view_samples) - n_cell_line
     sizes = [n_cell_line, n_no_cell_line]
     labels = ['cell line', 'no cell line']
     axarr[0][0].set_title('Cell Line')
+    colors = [
+        '#ffd11a',
+        '#005ce6'
+    ]
     patches, x, y = axarr[0][0].pie(
         sizes, 
         autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
-        shadow=False, startangle=90
+        shadow=False, 
+        startangle=90,
+        colors=colors
     )
     axarr[0][0].legend(
         patches, 
@@ -607,11 +736,14 @@ def _create_pie_charts(df, view_samples, sample_to_terms, skip_terms=None):
     n_unknown_sex = len(view_samples) - n_male - n_female
     sizes = [n_female, n_male, n_unknown_sex]
     labels = ['female', 'male', 'unknown']
+    colors = ['#D859FE', '#00ccff', '#C0C0C0']
     axarr[0][1].set_title('Sex')
     patches, x, y  = axarr[0][1].pie(
         sizes,
         autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
-        shadow=False, startangle=90
+        shadow=False, 
+        startangle=90,
+        colors=colors
     )
     axarr[0][1].legend(
         patches, 
@@ -627,11 +759,14 @@ def _create_pie_charts(df, view_samples, sample_to_terms, skip_terms=None):
     n_unknown_dev = len(view_samples) - n_adult - n_embryo
     sizes = [n_adult, n_embryo, n_unknown_dev]
     labels = ['adult', 'embryonic', 'unknown']
+    colors = ['#D85002', '#18CC0D', '#C0C0C0']
     axarr[1][0].set_title('Developmental Stage')
     patches, x, y  = axarr[1][0].pie(
         sizes,
         autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
-        shadow=False, startangle=90
+        shadow=False, 
+        startangle=90,
+        colors=colors
     )
     axarr[1][0].legend(
         patches,
@@ -646,11 +781,14 @@ def _create_pie_charts(df, view_samples, sample_to_terms, skip_terms=None):
     n_no_treat = len(view_samples) - n_treat
     sizes = [n_treat, n_no_treat]
     labels = ['treatment', 'no treatment']
+    colors = ['#EF6F58', '#F49E06']
     axarr[1][1].set_title('Treatment')
     patches, x, y = axarr[1][1].pie(
         sizes,
         autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '',
-        shadow=False, startangle=90
+        shadow=False, 
+        startangle=90,
+        colors=colors
     )
     axarr[1][1].legend(
         patches,
@@ -673,7 +811,7 @@ def create_series_plots(val_to_samples, target_property):
         ]
     )
     df.sort_values(target_property)
-    plt.figure(figsize=(0.2*len(df),5.0))
+    plt.figure(figsize=(0.3*len(df),5.0))
     sns.barplot(
         x=target_property, 
         y="Number of samples", 
@@ -716,15 +854,20 @@ def create_summary_plots(df):
         ]
     )
     fig, axarr = plt.subplots(
-        1,
         2,
+        1,
         sharey=False,
-        figsize=(2*0.9*len(df_n_studies['Tissue/Cell type'].unique())+2.5, max_len/15+2.5)
+        sharex=False,
+        figsize=(
+            #max_len/15+2.5,
+            8,
+            2*0.9*len(df_n_studies['Tissue/Cell type'].unique())+2.5 
+        )
     ) 
     sns.barplot(
         data=df_n_studies, 
-        x='Tissue/Cell type', 
-        y='Number of studies', 
+        y='Tissue/Cell type', 
+        x='Number of studies', 
         hue='Condition', 
         ax=axarr[0]
     )
@@ -734,20 +877,16 @@ def create_summary_plots(df):
         bbox_to_anchor=(1, 0.5)
     )
     for p in axarr[0].patches:
-        height = p.get_height()
-        y_lim = axarr[0].get_ylim()[1]
-        if height > 1000:
-            x_offset = -0.1* p.get_width()
-        else:
-            x_offset = 0.1 * p.get_width()
+        width = p.get_width()
+        x_lim = axarr[0].get_xlim()[1]
         axarr[0].text(
-            p.get_x() + x_offset,
-            height + 0.015 * y_lim,
-            '%d' % height,
+            width,
+            p.get_y() + 0.5 * p.get_height(), #+ y_offset,
+            '%d' % width,
             fontsize=9
         )
-    axarr[0].set_ylim(0, axarr[0].get_ylim()[1] + 0.05*axarr[0].get_ylim()[1])
-    plt.setp(axarr[0].xaxis.get_majorticklabels(), rotation=90)
+    axarr[0].set_xlim(0, axarr[0].get_xlim()[1] + 0.08*axarr[0].get_xlim()[1])
+    #plt.setp(axarr[0].yaxis.get_majorticklabels(), rotation=90)
 
     da_n_samples = []
     for name, group in grouped:
@@ -771,7 +910,8 @@ def create_summary_plots(df):
     )
     sns.barplot(
         data=df_n_samples, 
-        x='Tissue/Cell type', y='Number of samples', 
+        y='Tissue/Cell type', 
+        x='Number of samples', 
         hue='Condition', 
         ax=axarr[1]
     )
@@ -780,6 +920,18 @@ def create_summary_plots(df):
         loc='center left',
         bbox_to_anchor=(1, 0.5)
     )
+    for p in axarr[1].patches:
+        width = p.get_width()
+        x_lim = axarr[0].get_xlim()[1]
+        axarr[1].text(
+            width,
+            p.get_y() + 0.5 * p.get_height(), #+ y_offset,
+            '%d' % width,
+            fontsize=9
+        )
+    axarr[1].set_xlim(0, axarr[1].get_xlim()[1] + 0.08*axarr[1].get_xlim()[1])
+
+    """
     for p in axarr[1].patches:
         height = p.get_height()
         y_lim = axarr[1].get_ylim()[1]
@@ -795,6 +947,7 @@ def create_summary_plots(df):
         )
     axarr[1].set_ylim(0, axarr[1].get_ylim()[1] + 0.015*axarr[1].get_ylim()[1])
     plt.setp(axarr[1].xaxis.get_majorticklabels(), rotation=90)
+    """
     plt.tight_layout()
     
     
@@ -802,16 +955,22 @@ def load_metadata(available_data_f=None):
     """
     Load the SRA metadata.
     """
-    sample_to_terms_f_json = './data/sample_to_terms.json'
+    sample_to_all_terms_f_json = './data/sample_to_all_terms.json'
+    sample_to_ms_terms_f_json = './data/sample_to_ms_terms.json'
     term_name_to_id_f = './data/term_name_to_id.json'
+    term_id_to_name_f = './data/term_id_to_name.json'
     sample_to_study_f = './data/sample_to_study.json'
     sample_to_real_value_terms_f = './data/sample_to_real_value.json'
     sample_to_runs_f = './data/sample_to_runs.json'
     sample_to_type_f = './data/sample_to_type.json'
-    with open(sample_to_terms_f_json, 'r') as f:
-        sample_to_terms = json.load(f)    
+    with open(sample_to_all_terms_f_json, 'r') as f:
+        sample_to_all_terms = json.load(f)   
+    with open(sample_to_ms_terms_f_json, 'r') as f:
+        sample_to_ms_terms = json.load(f)
     with open(term_name_to_id_f, 'r') as f:
         term_name_to_id = json.load(f)
+    with open(term_id_to_name_f, 'r') as f:
+        term_id_to_name = json.load(f)
     with open(sample_to_type_f, 'r') as f:
         sample_to_type = json.load(f)
     with open(sample_to_study_f, 'r') as f:
@@ -819,7 +978,7 @@ def load_metadata(available_data_f=None):
     with open(sample_to_real_value_terms_f, 'r') as f:
         sample_to_real_val = json.load(f)
     with open(sample_to_runs_f, 'r') as f:
-        sample_to_runs = json.load(f)    
+        sample_to_runs = json.load(f) 
     if available_data_f:
         with open(available_data_f, 'r') as f:
             available = set(json.load(f))
@@ -828,8 +987,10 @@ def load_metadata(available_data_f=None):
             if k in available
         }    
     return (
-        sample_to_terms,
+        sample_to_all_terms,
+        sample_to_ms_terms,
         term_name_to_id,
+        term_id_to_name,
         sample_to_type,
         sample_to_study,
         sample_to_runs,
@@ -869,35 +1030,6 @@ def main():
     #term = 'glioblastoma multiforme' # A good one
     #term = 'cystic fibrosis' # okay
 
-    """    
-    term = 'blood'
-    #term = 'brain'
-    case, control = term_to_run(sample_to_terms, term)
-    blacklist_terms = set(['disease', 'disease of cellular proliferation'])
-    age_to_samples, df = series(term, 'age', sample_to_real_val, sample_to_terms,             
-        sample_to_type, sample_to_study, term_name_to_id, blacklist_terms, 
-        filter_poor=False, filter_cell_line=True, filter_differentiated=True,
-        value_limit=100, target_unit=None
-    )
-    print(df)
-    for age in sorted(age_to_samples.keys()):
-        print("%d\t%d" % (age, len(age_to_samples[age])))
-    """
-
-    """
-    r = match_case_to_controls(term, control, case, sample_to_terms, 
-        sample_to_study, blacklist_terms, term_name_to_id, sample_to_type, 
-        filter_poor=True, filter_cell_line=True, filter_differentiated=True,
-        sample_to_runs=sample_to_runs)
-    df = r[0]
-    control_confound = r[1]
-    case_confound = r[2]
-    tissue_intersections = r[3]
-    #df.to_csv('diabetes_case_control.csv')
-    print(df)
-    print('Tissue intersections: %s' % tissue_intersections)
-    """
-
     #term = 'glioblastoma multiforme' # A good one
     #term = 'systemic lupus erythematosus'
     term = 'breast cancer'
@@ -913,7 +1045,6 @@ def main():
     tissue_intersections = r[3]
     #df.to_csv('glioblastoma.tsv', sep='\t')
     df.to_csv('breast_cancer.tsv', sep='\t')
-    print(df)
     #print(df.loc[(df['type'] == 'brain')])
     #print(df.loc[(df['type'] == 'brain') & (df['condition'] == 'control')])
     #print('Tissue intersections: %s' % tissue_intersections)
