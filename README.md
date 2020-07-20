@@ -1,71 +1,32 @@
-# Jupyter notebook-based tools for performing hypothesis-driven queries within the Sequence Read Archive
+# Jupyter notebook-based tools for building structured datasets from the Sequence Read Archive
 
-The interactive pipeline is accessible through the Jupyter notebooks:
-- https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/case_control_finder.ipynb
-- https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/series_finder.ipynb
+This repository implements a pair of Jupyter notebook-based tools that utilize the [MetaSRA](http://metasra.biostat.wisc.edu) for building structured datasets from the [SRA](https://www.ncbi.nlm.nih.gov/sra) in order to facilitate secondary analyses of the SRA’s human RNA-seq data: 
+* *[Case-Control Finder:](https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/case_control_finder.ipynb)* Finds suitable case and control samples for a given disease or condition where the cases and controls are matched by tissue or cell type.  
+* *[Series Finder:](https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/series_finder.ipynb)* Finds ordered sets of samples for the purpose of addressing biological questions pertaining to changes over a numerical property such as time. 
+
+These notebooks currently utilize the MetaSRA version 1.6. 
 
 Note, this repository was copied and modified from the following repository: [https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/tree/master/Metadata](https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/tree/master/Metadata). These tools were developed at an NCBI computational biology codeathon in March 2019 held in Chapel Hill, North Carolina.
 
-Contributors:
-- Matthew Bernstein 
-- Emily Clough
-- Ariella Gladstein
-- Khun Zaw Latt
-- Ben Busby
-- Allissa Dillman
+###  Setup
 
-## How to interact with the Jupyter Notebooks
+The dependencies for these notebooks are described in ``requirements.txt``.  Furthermore, before running the notebook, you must unpack the static metadata files from ``data.tar.gz``. To do so, run the following command:
 
-### Accessing Notebooks via Docker
-The Notebook can be run via a Docker container so you do not have to worry about dependencies!  
-*Note: If you do not have Docker installed, see the Docker documentation 
-https://docs.docker.com/install/*  
+``tar -zcf data.tar.gz``
 
-On your local machine, simply run:
-```
-sudo docker run -it -v $(pwd):/home/jovyan/work --rm -p 8888:8888 ncbihackathons/metadata jupyter-lab
-```
-You must be in the `RNA-Seq-in-the-Cloud` or `RNA-Seq-in-the-Cloud/Metadata` directory.
+To run the Case-Control Finder, run:
 
-You will then see something like:
-```
-[I 23:49:14.625 LabApp] Writing notebook server cookie secret to /home/jovyan/.local/share/jupyter/runtime/notebook_cookie_secret
-[I 23:49:15.165 LabApp] JupyterLab extension loaded from /opt/conda/lib/python3.6/site-packages/jupyterlab
-[I 23:49:15.165 LabApp] JupyterLab application directory is /opt/conda/share/jupyter/lab
-[W 23:49:15.167 LabApp] JupyterLab server extension not enabled, manually loading...
-[I 23:49:15.174 LabApp] JupyterLab extension loaded from /opt/conda/lib/python3.6/site-packages/jupyterlab
-[I 23:49:15.174 LabApp] JupyterLab application directory is /opt/conda/share/jupyter/lab
-[I 23:49:15.175 LabApp] Serving notebooks from local directory: /home/jovyan
-[I 23:49:15.176 LabApp] The Jupyter Notebook is running at:
-[I 23:49:15.176 LabApp] http://(a8e01d3931bb or 127.0.0.1):8888/?token=53c5dcc8cab1af007ff3a7cabf41201e65771f1846ec75d4
-[I 23:49:15.176 LabApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
-[C 23:49:15.177 LabApp]
+``jupyter notebook case_control_finder.ipynb``
 
-    Copy/paste this URL into your browser when you connect for the first time,
-    to login with a token:
-        http://(a8e01d3931bb or 127.0.0.1):8888/?token=53c5dcc8cab1af007ff3a7cabf41201e65771f1846ec75d4
-```
-Then, paste the URL and token into your browser (we recommend using `127.0.0.1`), e.g.:  
-`http://127.0.0.1:8888/?token=53c5dcc8cab1af007ff3a7cabf41201e65771f1846ec75d4`.  
-*Note: If you run this Docker image via ssh on an HPC, server, or virtual machine, paste the IP of the machine it is running on, not `127.0.0.1`.*
+To run the Series Finder, run:
 
-In your browser, Jupyter Lab will open and you will see something like:  
-![Alt text](https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/screenshot_case_control.png?raw=true "Title")
+``jupyter notebook series_finder.ipynb``
 
-You can then navigate to the file you want to interact with:  
-![Alt text](https://github.com/mbernste/hypothesis-driven-SRA-queries/blob/master/screenshot_series.png?raw=true "Title")
 
-### Accessing Notebooks via Singularity
-If you do not have root access on your machine, you can also run the same Docker image via Singularity (https://www.sylabs.io/docs/)!
-```
-singularity exec docker://ncbihackathons/metadata jupyter-lab
-```
-
-### Accessing Notebook without Docker or Singulaity
-__Not Recommended__
-
-It is not necessary to access the notebook via the Docker image.
-If you opt to not use the Docker image, you will need to install:
-- Jupyter Notebooks (or Jupyter Lab)
-- All the dependencies for the Notebook
-
+### Contributors
+* Matthew Bernstein 
+* Emily Clough
+* Ariella Gladstein
+* Khun Zaw Latt
+* Ben Busby
+* Allissa Dillman
