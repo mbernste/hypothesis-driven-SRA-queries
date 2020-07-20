@@ -861,7 +861,7 @@ def create_summary_plots(df):
         figsize=(
             #max_len/15+2.5,
             8,
-            2*0.9*len(df_n_studies['Tissue/Cell type'].unique())+2.5 
+            2*0.45*len(df_n_studies['Tissue/Cell type'].unique())+2.5 
         )
     ) 
     sns.barplot(

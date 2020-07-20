@@ -36,6 +36,6 @@ rule generate_metadata_files:
         sradb='../SRAmetadb.sqlite',
         metasra='../metasra.v1-6.json'
     run:
-        c='python generate_metadata_files.py {input.metasra} {input.sradb} -o .'
+        c='python generate_metadata_files.py {input.metasra} {input.sradb} -o ./metadata_files'
         shell(c)
 

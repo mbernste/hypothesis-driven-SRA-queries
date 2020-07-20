@@ -6,6 +6,7 @@ from collections import defaultdict
 import sqlite3
 
 import load_ontology
+from onto_lib_py3 import ontology_graph
 
 QUERY_SRA_DB = """SELECT experiment_accession, run_accession, sample_accession, study_accession
     FROM experiment JOIN sample USING (sample_accession) LEFT JOIN run USING (experiment_accession) WHERE 
@@ -41,13 +42,23 @@ def main():
     print('done.')        
 
     term_name_to_id = {}
+    term_id_to_name = {}
     sample_to_real_val_props = {}
-    sample_to_terms = {}
+    sample_to_ms_terms = {}
+    sample_to_all_terms = {}
     sample_to_type = {}
     with open(metasra_f, 'r') as f:
         metasra = json.load(f)
         for sample in metasra:
+            # Map sample to term ID's
             term_ids = metasra[sample]['mapped ontology terms']
+            all_term_ids = set(term_ids)
+            for term_id in term_ids:
+                all_term_ids.update(og.recursive_superterms(term_id))
+            ms_term_ids = ontology_graph.most_specific_terms(all_term_ids, og)
+            #sample_to_all_terms[sample] = all_term_ids
+            #sample_to_ms_terms[sample] = ms_term_ids
+
             sample_type = metasra[sample]['sample type']
             raw_real_val_props = metasra[sample]['real-value properties']
             real_val_props = []
@@ -62,25 +73,40 @@ def main():
                 new_real_val_prop = {}
                 new_real_val_prop['property'] = prop_name
                 new_real_val_prop['unit'] = unit_name
+                new_real_val_prop['value'] = real_val_prop['value']
                 real_val_props.append(new_real_val_prop)
             if len(real_val_props) > 0:
                 sample_to_real_val_props[sample] = real_val_props
-            term_names = []
-            for term_id in term_ids:
+            ms_term_names = []
+            all_term_names = []
+            for term_id in ms_term_ids:
                 term_name = og.id_to_term[term_id].name
+                term_id_to_name[term_id] = term_name
                 if term_name in term_name_to_id:
-                    if not('EFO' in term_id and 'DOID' in term_name_to_id[term_name]):
+                    if not ('EFO' in term_id and 'DOID' in term_name_to_id[term_name]):
                         term_name_to_id[term_name] = term_id
                 else:
                     term_name_to_id[term_name] = term_id
-                term_names.append(term_name)
-            sample_to_terms[sample] = term_names
+                ms_term_names.append(term_name)
+            for term_id in all_term_ids:
+                term_name = og.id_to_term[term_id].name
+                term_id_to_name[term_id] = term_name
+                if term_name in term_name_to_id:
+                    if not ('EFO' in term_id and 'DOID' in term_name_to_id[term_name]):
+                        term_name_to_id[term_name] = term_id
+                else:
+                    term_name_to_id[term_name] = term_id
+                all_term_names.append(term_name)
+            sample_to_ms_terms[sample] = ms_term_names
+            sample_to_all_terms[sample] = all_term_names
             sample_to_type[sample] = sample_type
 
-    assert set(sample_to_terms.keys()) <= set(sample_to_study.keys())
+    assert set(sample_to_all_terms.keys()) <= set(sample_to_study.keys())
 
     with open(join(out_dir, 'term_name_to_id.json'), 'w') as f:
         json.dump(term_name_to_id, f, indent=True)
+    with open(join(out_dir, 'term_id_to_name.json'), 'w') as f:
+        json.dump(term_id_to_name, f, indent=True)
     with open(join(out_dir, 'sample_to_runs.json'), 'w') as f:
         json.dump(sample_to_runs, f, indent=True)
     with open(join(out_dir, 'sample_to_study.json'), 'w') as f:
@@ -89,8 +115,10 @@ def main():
         json.dump(sample_to_real_val_props, f, indent=True)
     with open(join(out_dir, 'sample_to_type.json'), 'w') as f:
         json.dump(sample_to_type, f, indent=True)
-    with open(join(out_dir, 'sample_to_terms.json'), 'w') as f:
-        json.dump(sample_to_terms, f, indent=True)  
+    with open(join(out_dir, 'sample_to_all_terms.json'), 'w') as f:
+        json.dump(sample_to_all_terms, f, indent=True) 
+    with open(join(out_dir, 'sample_to_ms_terms.json'), 'w') as f:
+        json.dump(sample_to_ms_terms, f, indent=True)
 
 if __name__ == "__main__":
     main()
