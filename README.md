@@ -17,7 +17,7 @@ A few things to note:
 
 The notebooks can be executed in the cloud via Google Colab:
 * [Case-Control Finder Colab notebook](https://colab.research.google.com/drive/1HX8V5yFRCh-AdkC-XHnfo6thg6VHwplC?usp=sharing)
-* [Series Finder Colab notebook]()
+* [Series Finder Colab notebook](https://colab.research.google.com/drive/1BNmBokHi41ODCWeS3G_WY8OfZ54RVXf3?usp=sharing)
 
 
 ## Running the notebooks locally
