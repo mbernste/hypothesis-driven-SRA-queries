@@ -13,6 +13,11 @@ A few things to note:
 * These notebooks currently utilize the MetaSRA version 1.6. 
 * This repository was copied and modified from the following repository: [https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/tree/master/Metadata](https://github.com/NCBI-Hackathons/RNA-Seq-in-the-Cloud/tree/master/Metadata). These tools were developed at an NCBI computational biology codeathon in March 2019 held in Chapel Hill, North Carolina.
 
+### Running the notebooks on Google Colab
+
+The notebooks can be executed in the cloud via Google Colab:
+* [Case-Control Finder Colab notebook](https://colab.research.google.com/drive/1HX8V5yFRCh-AdkC-XHnfo6thg6VHwplC?usp=sharing)
+
 ###  Setup
 
 The dependencies for these notebooks are described in ``requirements.txt``.  To install these dependencies, please run
